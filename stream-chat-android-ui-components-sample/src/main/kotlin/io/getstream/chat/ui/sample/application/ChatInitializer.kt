@@ -9,13 +9,13 @@ import io.getstream.chat.android.core.ExperimentalStreamChatApi
 import io.getstream.chat.android.offline.experimental.plugin.Config
 import io.getstream.chat.android.offline.experimental.plugin.OfflinePlugin
 import io.getstream.chat.android.client.notifications.handler.NotificationHandlerFactory
+import io.getstream.chat.android.core.internal.InternalStreamChatApi
 import io.getstream.chat.android.pushprovider.firebase.FirebasePushDeviceGenerator
 import io.getstream.chat.android.pushprovider.huawei.HuaweiPushDeviceGenerator
 import io.getstream.chat.ui.sample.BuildConfig
 import io.getstream.chat.ui.sample.feature.HostActivity
 
-
-
+@OptIn(InternalStreamChatApi::class)
 class ChatInitializer(private val context: Context) {
 
     @OptIn(ExperimentalStreamChatApi::class)
