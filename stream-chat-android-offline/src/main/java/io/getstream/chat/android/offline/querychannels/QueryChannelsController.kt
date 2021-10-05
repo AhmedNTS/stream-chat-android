@@ -59,10 +59,10 @@ public class QueryChannelsController internal constructor(
     public var channelEventsHandler: ChannelEventsHandler? = null
 
     // TODO deprecate
-    public var newChannelEventFilter: suspend (Channel, FilterObject) -> Boolean =
-        defaultChannelEventsHandler.newChannelEventFilter
+    public var newChannelEventFilter: suspend (Channel, FilterObject) -> Boolean by defaultChannelEventsHandler::newChannelEventFilter
+
     // TODO deprecate
-    public var checkFilterOnChannelUpdatedEvent: Boolean = defaultChannelEventsHandler.checkFilterOnChannelUpdatedEvent
+    public var checkFilterOnChannelUpdatedEvent: Boolean by defaultChannelEventsHandler::checkFilterOnChannelUpdatedEvent
 
     private val eventsHandler: ChannelEventsHandler
         get() = channelEventsHandler ?: defaultChannelEventsHandler
