@@ -2,28 +2,23 @@ package io.getstream.chat.android.offline.querychannels
 
 import io.getstream.chat.android.client.ChatClient
 import io.getstream.chat.android.client.api.models.FilterObject
-import io.getstream.chat.android.client.api.models.QueryChannelsRequest
 import io.getstream.chat.android.client.api.models.QuerySort
 import io.getstream.chat.android.client.call.await
 import io.getstream.chat.android.client.errors.ChatError
-import io.getstream.chat.android.client.events.ChannelDeletedEvent
-import io.getstream.chat.android.client.events.ChannelUpdatedByUserEvent
-import io.getstream.chat.android.client.events.ChannelUpdatedEvent
 import io.getstream.chat.android.client.events.ChatEvent
 import io.getstream.chat.android.client.events.CidEvent
+import io.getstream.chat.android.client.events.HasChannel
 import io.getstream.chat.android.client.events.MarkAllReadEvent
-import io.getstream.chat.android.client.events.NotificationAddedToChannelEvent
-import io.getstream.chat.android.client.events.NotificationChannelDeletedEvent
 import io.getstream.chat.android.client.events.UserPresenceChangedEvent
 import io.getstream.chat.android.client.events.UserStartWatchingEvent
 import io.getstream.chat.android.client.events.UserStopWatchingEvent
 import io.getstream.chat.android.client.logger.ChatLogger
 import io.getstream.chat.android.client.models.Channel
 import io.getstream.chat.android.client.models.ChannelMute
-import io.getstream.chat.android.client.models.Filters
 import io.getstream.chat.android.client.models.User
 import io.getstream.chat.android.client.utils.Result
 import io.getstream.chat.android.client.utils.map
+import io.getstream.chat.android.core.internal.exhaustive
 import io.getstream.chat.android.offline.ChatDomain
 import io.getstream.chat.android.offline.ChatDomainImpl
 import io.getstream.chat.android.offline.extensions.users
@@ -58,25 +53,19 @@ public class QueryChannelsController internal constructor(
     ) : this(filter, sort, client, domain as ChatDomainImpl)
 
     private var channelOffset = INITIAL_CHANNEL_OFFSET
-    public var newChannelEventFilter: suspend (Channel, FilterObject) -> Boolean = { channel, filterObject ->
-        client.queryChannels(
-            QueryChannelsRequest(
-                filter = Filters.and(
-                    filterObject,
-                    Filters.eq("cid", channel.cid)
-                ),
-                offset = 0,
-                limit = 1,
-                messageLimit = 0,
-                memberLimit = 0,
-            )
-        ).await()
-            .map { channels -> channels.any { it.cid == channel.cid } }
-            .let { it.isSuccess && it.data() }
-    }
 
-    public var checkFilterOnChannelUpdatedEvent: Boolean = false
     public var recoveryNeeded: Boolean = false
+    private val defaultChannelEventsHandler: DefaultChannelEventsHandler = DefaultChannelEventsHandler(client, filter)
+    public var channelEventsHandler: ChannelEventsHandler? = null
+
+    // TODO deprecate
+    public var newChannelEventFilter: suspend (Channel, FilterObject) -> Boolean =
+        defaultChannelEventsHandler.newChannelEventFilter
+    // TODO deprecate
+    public var checkFilterOnChannelUpdatedEvent: Boolean = defaultChannelEventsHandler.checkFilterOnChannelUpdatedEvent
+
+    private val eventsHandler: ChannelEventsHandler
+        get() = channelEventsHandler ?: defaultChannelEventsHandler
 
     internal val queryChannelsSpec: QueryChannelsSpec = QueryChannelsSpec(filter)
 
@@ -120,9 +109,8 @@ public class QueryChannelsController internal constructor(
     }
 
     internal suspend fun updateQueryChannelSpec(channel: Channel) {
-        if (newChannelEventFilter(channel, filter)) {
+        if (defaultChannelEventsHandler.newChannelEventFilter(channel, filter)) {
             addChannel(channel)
-            domainImpl.channel(channel).updateDataFromChannel(channel)
         } else {
             removeChannel(channel.cid)
         }
@@ -139,13 +127,12 @@ public class QueryChannelsController internal constructor(
     }
 
     internal suspend fun handleEvent(event: ChatEvent) {
-        when (event) {
-            is NotificationAddedToChannelEvent -> updateQueryChannelSpec(event.channel)
-            is ChannelDeletedEvent -> removeChannel(event.channel.cid)
-            is NotificationChannelDeletedEvent -> removeChannel(event.channel.cid)
-            is ChannelUpdatedByUserEvent -> event.channel.takeIf { checkFilterOnChannelUpdatedEvent }?.let { updateQueryChannelSpec(it) }
-            is ChannelUpdatedEvent -> event.channel.takeIf { checkFilterOnChannelUpdatedEvent }?.let { updateQueryChannelSpec(it) }
-            else -> Unit // Ignore other events
+        if (event is HasChannel) {
+            when (eventsHandler.onChannelEvent(event)) {
+                EventHandlingResult.ADD -> addChannel(event.channel)
+                EventHandlingResult.REMOVE -> removeChannel(event.channel.cid)
+                EventHandlingResult.SKIP -> Unit
+            }.exhaustive
         }
 
         if (event is MarkAllReadEvent) {
@@ -229,7 +216,10 @@ public class QueryChannelsController internal constructor(
         return runQuery(pagination).map { it - oldChannels }
     }
 
-    private suspend fun addChannel(channel: Channel) = addChannels(listOf(channel))
+    private suspend fun addChannel(channel: Channel) {
+        addChannels(listOf(channel))
+        domainImpl.channel(channel).updateDataFromChannel(channel)
+    }
 
     internal suspend fun removeChannel(cid: String) = removeChannels(listOf(cid))
 
@@ -316,8 +306,8 @@ public class QueryChannelsController internal constructor(
     ) {
         if (isFirstPage) {
             (_channels.value - channels.map { it.cid }).values
-                .filterNot { newChannelEventFilter(it, filter) }
-                .map { it.cid }
+                .filterNot { defaultChannelEventsHandler.newChannelEventFilter(it, filter) }
+                .map(Channel::cid)
                 .let { removeChannels(it) }
         }
         channelOffset += channels.size

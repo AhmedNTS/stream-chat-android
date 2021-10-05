@@ -8,6 +8,7 @@ import io.getstream.chat.android.client.events.ChatEvent
 import io.getstream.chat.android.client.models.Channel
 import io.getstream.chat.android.client.utils.Result
 import io.getstream.chat.android.core.internal.coroutines.DispatcherProvider
+import io.getstream.chat.android.offline.querychannels.ChannelEventsHandler
 import io.getstream.chat.android.offline.querychannels.QueryChannelsSpec
 import io.getstream.chat.android.offline.request.QueryChannelsPaginationRequest
 import kotlinx.coroutines.flow.map
@@ -44,6 +45,8 @@ internal class QueryChannelsControllerImpl(private val queryChannels: QueryChann
             queryChannels.recoveryNeeded = value
         }
     val queryChannelsSpec: QueryChannelsSpec = queryChannels.queryChannelsSpec
+
+    override var channelEventsHandler: ChannelEventsHandler? = queryChannels.channelEventsHandler
 
     override val endOfChannels: LiveData<Boolean> = queryChannels.endOfChannels.asLiveData()
 
