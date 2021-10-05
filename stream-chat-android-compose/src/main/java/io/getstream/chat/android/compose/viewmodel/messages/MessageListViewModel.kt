@@ -34,6 +34,7 @@ import io.getstream.chat.android.compose.state.messages.list.Reply
 import io.getstream.chat.android.compose.state.messages.list.ThreadReply
 import io.getstream.chat.android.offline.ChatDomain
 import io.getstream.chat.android.offline.channel.ChannelController
+import io.getstream.chat.android.offline.model.ConnectionState
 import io.getstream.chat.android.offline.thread.ThreadController
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -107,7 +108,7 @@ public class MessageListViewModel(
     /**
      * Gives us information about the online state of the device.
      */
-    public val isOnline: StateFlow<Boolean>
+    public val isOnline: StateFlow<ConnectionState>
         get() = chatDomain.online
 
     /**

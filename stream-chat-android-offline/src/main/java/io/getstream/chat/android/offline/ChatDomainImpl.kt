@@ -40,6 +40,7 @@ import io.getstream.chat.android.offline.extensions.users
 import io.getstream.chat.android.offline.message.attachment.UploadAttachmentsNetworkType
 import io.getstream.chat.android.offline.message.users
 import io.getstream.chat.android.offline.model.ChannelConfig
+import io.getstream.chat.android.offline.model.ConnectionState
 import io.getstream.chat.android.offline.model.SyncState
 import io.getstream.chat.android.offline.querychannels.QueryChannelsController
 import io.getstream.chat.android.offline.repository.RepositoryFacade
@@ -173,7 +174,7 @@ internal class ChatDomainImpl internal constructor(
     internal var repos: RepositoryFacade = createNoOpRepos()
 
     private val _initialized = MutableStateFlow(false)
-    private val _online = MutableStateFlow(false)
+    private val _online = MutableStateFlow(ConnectionState.OFFLINE)
     private val _totalUnreadCount = MutableStateFlow(0)
     private val _channelUnreadCount = MutableStateFlow(0)
     private val _errorEvent = MutableStateFlow<Event<ChatError>?>(null)
@@ -191,7 +192,7 @@ internal class ChatDomainImpl internal constructor(
     /**
      * StateFlow<Boolean> that indicates if we are currently online
      */
-    override val online: StateFlow<Boolean> = _online
+    override val online: StateFlow<ConnectionState> = _online
 
     /**
      * The total unread message count for the current user.
@@ -250,7 +251,7 @@ internal class ChatDomainImpl internal constructor(
 
     private fun clearState() {
         _initialized.value = false
-        _online.value = false
+        _online.value = ConnectionState.OFFLINE
         _totalUnreadCount.value = 0
         _channelUnreadCount.value = 0
         _banned.value = false
@@ -530,20 +531,26 @@ internal class ChatDomainImpl internal constructor(
     }
 
     internal fun setOffline() {
-        _online.value = false
+        _online.value = ConnectionState.OFFLINE
     }
 
     internal fun setOnline() {
-        _online.value = true
+        _online.value = ConnectionState.CONNECTED
+    }
+
+    internal fun setConnecting() {
+        _online.value = ConnectionState.CONNECTING
     }
 
     internal fun setInitialized() {
         _initialized.value = true
     }
 
-    override fun isOnline(): Boolean = _online.value
+    override fun isOnline(): Boolean = _online.value == ConnectionState.CONNECTED
 
-    override fun isOffline(): Boolean = !_online.value
+    override fun isOffline(): Boolean = _online.value == ConnectionState.OFFLINE
+
+    override fun isConnecting(): Boolean = _online.value == ConnectionState.CONNECTING
 
     override fun isInitialized(): Boolean {
         return _initialized.value
