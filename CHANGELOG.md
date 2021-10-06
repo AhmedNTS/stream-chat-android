@@ -53,6 +53,7 @@
 
 ## stream-chat-android-offline
 ### 🐞 Fixed
+- Fixed infinite loading of message if any of its attachments uploading was failed
 
 ### ⬆️ Improved
 
